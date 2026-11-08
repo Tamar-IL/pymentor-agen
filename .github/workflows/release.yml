@@ -1,0 +1,45 @@
+# Builds agent.exe on Windows and publishes it on the Releases page.
+# Trigger: push a tag like v1.0.0   (git tag v1.0.0 && git push origin v1.0.0)
+name: Build agent.exe and release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows-exe:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r requirements-dev.txt
+
+      - name: Run tests (offline, no API key needed)
+        run: python -m pytest -q
+
+      - name: Build agent.exe with PyInstaller
+        run: pyinstaller --onefile --console --name agent --collect-submodules langgraph --collect-submodules langchain_openai main.py
+
+      - name: Smoke test - the exe starts and exits cleanly
+        shell: bash
+        run: printf 'help\nexit\n' | OPENROUTER_API_KEY=dummy ./dist/agent.exe
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: agent-exe
+          path: dist/agent.exe
+
+      - name: Publish to GitHub Releases
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/agent.exe

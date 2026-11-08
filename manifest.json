@@ -1,0 +1,51 @@
+{
+  "name": "PyMentor Agent",
+  "version": "1.0.0",
+  "description": "A focused Python tutor agent for beginner programmers: explains Python concepts, explains and fixes Python errors, reviews code, and runs Python code only after the user approves. Refuses anything outside Python programming.",
+  "creator_name": "YOUR FULL NAME",
+  "contact_information": "your.email@example.com",
+  "release_date": "2026-11-08",
+  "repository_url": "https://github.com/Tamar-IL/pymentor-agen",
+  "download_url": "https://github.com/Tamar-IL/pymentor-agen/releases/download/v1.0.0/agent.exe",
+  "target_audience": "Beginner Python programmers, students, and Python course instructors",
+  "professional_fields": [
+    "Programming Education",
+    "Software Development",
+    "Python"
+  ],
+  "tasks_capable_of_performing": [
+    "Explaining Python concepts with examples",
+    "Explaining Python error messages and tracebacks",
+    "Fixing buggy Python code",
+    "Reviewing Python code and suggesting improvements",
+    "Running Python code safely after user approval and explaining the real output"
+  ],
+  "examples_of_suitable_questions": [
+    "What is the difference between a list and a tuple?",
+    "Why do I get TypeError: can only concatenate str (not \"int\") to str?",
+    "Run my file and tell me why it crashes: file C:\\homework\\ex1.py",
+    "Can you review my function and make it more Pythonic?"
+  ],
+  "technical_specifications": {
+    "framework": "LangGraph",
+    "llm_provider": "OpenRouter",
+    "supported_models": [
+      "google/gemma-4-31b-it:free",
+      "nvidia/nemotron-3.5-lightning:free",
+      "nvidia/nemotron-3-ultra-550b-a55b:free",
+      "openrouter/free",
+      "openai/gpt-4o-mini"
+    ],
+    "features_enabled": {
+      "rag": true,
+      "web_search": false,
+      "code_execution": true,
+      "mcp_support": false
+    },
+    "required_permissions": [
+      "local_file_read",
+      "local_file_write",
+      "sandbox_code_execution"
+    ]
+  }
+}
