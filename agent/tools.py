@@ -20,6 +20,8 @@ import sys
 import tempfile
 from pathlib import Path
 
+from langsmith import traceable  # no-op unless LANGSMITH_TRACING=true
+
 from agent.knowledge import DOCUMENTS
 
 # ---------------------------------------------------------------- RAG (BM25)
@@ -44,6 +46,7 @@ for _tokens in _DOC_TOKENS:
         _DOC_FREQ[_term] = _DOC_FREQ.get(_term, 0) + 1
 
 
+@traceable(name="rag_search_knowledge", run_type="tool")
 def search_knowledge(query: str, k: int = 3) -> list[dict[str, str]]:
     """Return the top-k knowledge documents for the query (BM25). Empty if nothing matches."""
     terms = _tokenize(query)
@@ -102,6 +105,7 @@ def find_python_interpreter() -> str | None:
     return None
 
 
+@traceable(name="code_exec_run_python", run_type="tool")
 def run_python_code(code: str, timeout: int = DEFAULT_TIMEOUT_SECONDS) -> str:
     """Run Python code in a restricted subprocess and return a printable result."""
     interpreter = find_python_interpreter()

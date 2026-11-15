@@ -6,6 +6,7 @@ exercise exactly the same workflow.
 
 from __future__ import annotations
 
+import os
 import uuid
 from typing import Callable
 
@@ -23,6 +24,15 @@ NODE_LABELS = {
 }
 
 
+def trace_metadata(model: str | None) -> dict:
+    """Searchable metadata on every LangSmith trace (filter by agent, environment, model)."""
+    return {
+        "model": model,
+        "agent_id": os.getenv("LANGSMITH_AGENT_ID", "pymentor"),
+        "agent_environment": os.getenv("LANGSMITH_AGENT_ENVIRONMENT", "local"),
+    }
+
+
 def run_turn(
     graph,
     inputs: dict,
@@ -36,7 +46,7 @@ def run_turn(
         "configurable": {"thread_id": str(uuid.uuid4())},   # each question is independent
         "run_name": "PyMentor turn",                         # name shown in LangSmith
         "tags": ["pymentor"],
-        "metadata": {"model": inputs.get("model")},
+        "metadata": trace_metadata(inputs.get("model")),
     }
     next_input: dict | Command = {**inputs, "usage": []}
     while True:

@@ -35,6 +35,7 @@ python main.py
 |---|---|---|
 | `OPENROUTER_API_KEY` | yes | https://openrouter.ai/keys (free) |
 | `LANGSMITH_API_KEY` + `LANGSMITH_TRACING=true` | for monitoring | https://smith.langchain.com |
+| `LANGSMITH_AGENT_ID` + `LANGSMITH_AGENT_ENVIRONMENT` (or `LANGSMITH_PROJECT`) | optional | where traces go — set **one** of the two; with both, LangSmith records nothing, so the agent then ignores the project |
 
 Never commit your real `.env` — it is in `.gitignore`.
 
@@ -120,7 +121,7 @@ flowchart TD
 | **Evaluator** | ✔ | `evaluator` node (LLM-as-judge inside the graph, max 1 rewrite) |
 | **HITL** | ✔ | `approve_and_run` uses LangGraph `interrupt()`; CLI asks `[y/N]` and resumes with `Command(resume=...)` |
 | Extensions | ✔ | **RAG** (`tools.search_knowledge`) + **Code-Exec** (`tools.run_python_code`) |
-| LangSmith monitoring | ✔ | automatic tracing of every graph run when `LANGSMITH_TRACING=true` |
+| LangSmith monitoring | ✔ | automatic tracing of every graph run when `LANGSMITH_TRACING=true`; the RAG search and code execution are traced as their own steps (`@traceable`); every trace carries `agent_id`, `agent_environment` and `model` metadata |
 | Streaming of current node | ✔ | `agent/runner.py` uses `graph.stream(stream_mode="tasks")` → `[INFO] Entering Node: ...` |
 
 ### LLM tasks inside the agent

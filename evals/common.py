@@ -15,6 +15,12 @@ from dotenv import load_dotenv  # noqa: E402
 
 load_dotenv(ROOT / ".env")
 
+from agent.tracing import resolve_langsmith_target  # noqa: E402
+
+_notice = resolve_langsmith_target()
+if _notice:
+    print(_notice)
+
 from agent.graph import build_graph  # noqa: E402
 from agent.llm import LLMError, call_llm, parse_json_object  # noqa: E402
 from agent.runner import run_turn  # noqa: E402

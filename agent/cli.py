@@ -95,6 +95,11 @@ def load_configuration() -> None:
     # LangSmith: accept both the new (LANGSMITH_*) and the older (LANGCHAIN_*) variable names.
     if os.getenv("LANGCHAIN_TRACING_V2", "").lower() == "true" and not os.getenv("LANGSMITH_TRACING"):
         os.environ["LANGSMITH_TRACING"] = "true"
+    from agent.tracing import resolve_langsmith_target
+
+    notice = resolve_langsmith_target()
+    if notice:
+        print(notice)
     if os.getenv("LANGSMITH_TRACING", "").lower() == "true" and not (
         os.getenv("LANGSMITH_API_KEY") or os.getenv("LANGCHAIN_API_KEY")
     ):
@@ -104,7 +109,9 @@ def load_configuration() -> None:
 
 def langsmith_status() -> str:
     if os.getenv("LANGSMITH_TRACING", "").lower() == "true":
-        return f"ON (project: {os.getenv('LANGSMITH_PROJECT', 'default')})"
+        from agent.tracing import describe_target
+
+        return f"ON ({describe_target()})"
     return "OFF (set LANGSMITH_TRACING=true and LANGSMITH_API_KEY in .env)"
 
 

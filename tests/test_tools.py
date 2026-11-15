@@ -110,3 +110,38 @@ def test_paid_model_actual_equals_theoretical(fake_catalog):
     assert prices["actual"] == prices["theoretical"]
     with pytest.raises(KeyError):
         pricing.prices_for("unknown/model")
+
+
+def test_trace_metadata_reads_agent_id_and_environment(monkeypatch):
+    from agent.runner import trace_metadata
+
+    monkeypatch.setenv("LANGSMITH_AGENT_ID", "bachir")
+    monkeypatch.setenv("LANGSMITH_AGENT_ENVIRONMENT", "local")
+    assert trace_metadata("m/x:free") == {"model": "m/x:free", "agent_id": "bachir", "agent_environment": "local"}
+
+
+def test_traced_tools_still_work_with_tracing_off(monkeypatch):
+    monkeypatch.setenv("LANGSMITH_TRACING", "false")
+    assert tools.search_knowledge("ZeroDivisionError")[0]["title"] == "ZeroDivisionError"
+    assert "4" in tools.run_python_code("print(2 * 2)")
+
+
+def test_langsmith_project_is_dropped_when_agent_address_is_set(monkeypatch):
+    """Regression: with both set, LangSmith silently recorded zero traces."""
+    from agent.tracing import describe_target, resolve_langsmith_target
+
+    monkeypatch.setenv("LANGSMITH_PROJECT", "pymentor-agent")
+    monkeypatch.setenv("LANGSMITH_AGENT_ID", "bachir")
+    monkeypatch.setenv("LANGSMITH_AGENT_ENVIRONMENT", "local")
+    assert "ignored" in resolve_langsmith_target()
+    assert "LANGSMITH_PROJECT" not in __import__("os").environ
+    assert describe_target() == "agent: bachir / local"
+
+
+def test_langsmith_project_alone_is_kept(monkeypatch):
+    from agent.tracing import resolve_langsmith_target
+
+    monkeypatch.delenv("LANGSMITH_AGENT_ID", raising=False)
+    monkeypatch.setenv("LANGSMITH_PROJECT", "pymentor-agent")
+    assert resolve_langsmith_target() is None
+    assert __import__("os").environ["LANGSMITH_PROJECT"] == "pymentor-agent"

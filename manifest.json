@@ -69,7 +69,10 @@
       "LANGSMITH_API_KEY",
       "LANGSMITH_PROJECT",
       "PYMENTOR_MODEL",
-      "PYMENTOR_FALLBACK_MODELS"
+      "PYMENTOR_FALLBACK_MODELS",
+      "LANGSMITH_ENDPOINT",
+      "LANGSMITH_AGENT_ID",
+      "LANGSMITH_AGENT_ENVIRONMENT"
     ],
     "default_model": "nvidia/nemotron-3.5-lightning:free"
   }
