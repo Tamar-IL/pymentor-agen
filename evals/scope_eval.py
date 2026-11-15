@@ -10,6 +10,8 @@ Output: evals/results/scope_eval.csv
 
 from __future__ import annotations
 
+import os
+
 from common import require_api_key, run_agent, write_csv
 
 from agent.llm import default_model
@@ -51,7 +53,9 @@ IN_SCOPE_CONTROLS = [
 
 def main() -> None:
     require_api_key()
-    model = default_model()   # the agent as users get it (backup models on)
+    # Default: the agent as users get it (default model + backups). EVAL_SCOPE_MODEL lets you
+    # run it on another model, e.g. a paid one when the daily free-model quota is used up.
+    model = os.getenv("EVAL_SCOPE_MODEL") or default_model()
     rows = []
     cases = [(q, True) for q in OUT_OF_SCOPE] + [(q, False) for q in IN_SCOPE_CONTROLS]
     for question, should_refuse in cases:

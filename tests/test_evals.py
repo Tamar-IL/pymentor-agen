@@ -111,3 +111,10 @@ def test_run_agent_retries_after_rate_limit(eval_env, monkeypatch):
     result = common.run_agent("What is a list?", "free/model:free")
     assert result["error"] == "" and result["answer"]
     assert sleeps == [common.RATE_LIMIT_WAIT_SECONDS]
+
+
+def test_scope_eval_model_can_be_overridden(eval_env, monkeypatch):
+    _, out = eval_env
+    monkeypatch.setenv("EVAL_SCOPE_MODEL", "paid/model")
+    scope_eval.main()
+    assert {r["model"] for r in read(out / "scope_eval.csv")} == {"paid/model"}
