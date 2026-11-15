@@ -67,6 +67,7 @@ def make_chat_model(model: str, temperature: float = 0.2):
         temperature=temperature,
         timeout=90,
         max_retries=2,
+        stream_usage=True,   # token counts also when streamed (Safe-Agents cost display)
         default_headers={"X-Title": "PyMentor Agent"},
     )
 

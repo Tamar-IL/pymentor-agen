@@ -57,7 +57,7 @@ def test_debug_with_code_asks_approval_and_runs_when_approved(fake_llm):
 
     state = run_turn(build_graph(), {"question": "Why does this fail?\n```python\nprint(1/0)\n```",
                                      "model": MODEL}, approve=approve)
-    assert seen and seen[0]["type"] == "confirm_code_execution" and "1/0" in seen[0]["code"]
+    assert seen and seen[0]["type"] == "approval" and seen[0]["action"] == "run_python_code" and "1/0" in seen[0]["code"]
     assert state["code_approved"] is True
     assert "ZeroDivisionError" in state["code_output"]
 
@@ -101,7 +101,8 @@ def test_attached_python_file_is_used_as_code(fake_llm):
 
 def test_output_guardrail_redacts_secrets(fake_llm):
     replies, _ = fake_llm
-    replies["draft"] = "Use key sk-or-v1-abcdefghijklmnopqrstuvwxyz123456 here. Tip: none"
+    fake_key = "sk-or-v1-" + "a1b2c3d4" * 4   # built at runtime: no key-like literal in the source
+    replies["draft"] = f"Use key {fake_key} here. Tip: none"
     state, _ = run("How do I read env vars in Python?")
     assert "sk-or-v1" not in state["answer"] and "[REDACTED-SECRET]" in state["answer"]
 

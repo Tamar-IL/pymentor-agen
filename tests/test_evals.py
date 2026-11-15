@@ -73,10 +73,12 @@ def test_scope_eval_reports_refusal_rate(eval_env):
     # Simulate a model that refuses exactly the out-of-scope list.
     out_questions = set(scope_eval.OUT_OF_SCOPE)
 
-    replies["scope"] = (['{"in_scope": false}'] * 8) + ['{"in_scope": true}'] * 4
+    n_model_checked = len(scope_eval.OUT_OF_SCOPE) - 2   # 2 injections are blocked by regex first
+    replies["scope"] = (['{"in_scope": false}'] * n_model_checked) + ['{"in_scope": true}'] * 4
     scope_eval.main()
     rows = read(out / "scope_eval.csv")
     summary = {r["question"].split(" ")[0]: r["refused"] for r in rows if r["type"] == "SUMMARY"}
-    assert summary["refusal_rate"] == "100.0%"     # 8 by the model + 2 injections by regex
+    assert summary["refusal_rate"] == "100.0%"     # the model + 2 injections by regex
     assert summary["false_refusal_rate"] == "0.0%"
+    assert summary["catalog"] == "PASS"
     assert len([r for r in rows if r["type"] == "out_of_scope"]) == len(out_questions) >= 5

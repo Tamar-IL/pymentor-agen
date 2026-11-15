@@ -193,7 +193,7 @@ Each writes its own CSV to `evals/results/`.
 |---|---|---|---|
 | 1. Model comparison | Same 3 tasks on different models | Time measured automatically; quality, data quality and reliability by **LLM-as-judge** with one **fixed** judge model and the rubric in [`evals/rubric.md`](evals/rubric.md) | `compare_models.csv` |
 | 2. Cost | 4 common tasks on free + paid models | `price × tokens` per graph node + total per task + grand total; for free models the **actual** cost (0) next to the **theoretical** cost (the paid twin's price, or a labelled reference rate) | `cost_eval.csv` |
-| 3. Professionalism & no-leakage | 10 out-of-scope questions (incl. 2 injection attempts) + 4 valid controls | **refusal rate** (% correctly refused) and false-refusal rate | `scope_eval.csv` |
+| 3. Professionalism & no-leakage | 18 out-of-scope questions — the store's own 8 Hebrew probes from `policy.json`, 8 more, and 2 injection attempts — plus 4 valid controls | **refusal rate** (% correctly refused), false-refusal rate, and PASS/FAIL against the store's 80% bar | `scope_eval.csv` |
 
 Models are configurable in `.env` (`EVAL_FREE_MODELS`, `EVAL_PAID_MODELS`, `JUDGE_MODEL`).
 The defaults use `openai/gpt-4o-mini` as the paid model and the judge — the whole eval run
@@ -206,10 +206,11 @@ costs a few cents of OpenRouter credit.
 pip install -r requirements-dev.txt
 python -m pytest
 ```
-40 offline tests use a fake model (no key, no cost): the full graph path, refusals,
+47 offline tests use a fake model (no key, no cost): the full graph path, refusals,
 injection blocking, HITL approve/decline, the rewrite loop, secret redaction, model
 fallback, code execution (errors, timeouts, output cap), file validation, pricing,
-and all three eval scripts producing their CSVs.
+all three eval scripts producing their CSVs, and the Safe-Agents platform contract
+(`messages` state, approval format, two turns on one thread, file paths in messages).
 
 ---
 
@@ -232,7 +233,23 @@ The exe is created at `dist\agent.exe`. Upload it on GitHub → Releases → *Dr
 
 ---
 
-## 7. Limitations (honest list)
+## 7. Safe-Agents store compatibility
+
+The agent follows the [Safe-Agents agent contract](https://github.com/SafeAI613/Safe-Agents/blob/main/docs/AGENT_CONTRACT.md):
+
+| Contract rule | How PyMentor meets it |
+|---|---|
+| `manifest.json` with a `runtime` block | validated against `schemas/manifest.schema.json` (0 errors) |
+| `graph_entry` = `agent/graph.py:graph`, no custom checkpointer | module-level `graph = builder.compile()` |
+| No LLM client or key reading at import time | the client is created inside the nodes |
+| State contains `messages` | input is read from the last user message; the answer is appended as an AI message |
+| HITL via `interrupt()` with `{"type": "approval", ...}` | resumes with `{"approved": bool, "edited": ...}` (the CLI's `y`/`n` also works) |
+| Cost from `usage_metadata` | the final AI message carries the turn's total tokens; `stream_usage=True` |
+| Files arrive as a path inside the message | the path is detected and the file is read |
+| Source zip as a Release asset | the release workflow uploads `pymentor-agen.zip` and its sha256 |
+| No hard-coded keys | the repo passes the store's key-pattern scan |
+
+## 8. Limitations (honest list)
 - Free models change and can be slow or rate-limited; the agent falls back automatically, but
   answer quality depends on the model.
 - Code-exec is a restricted subprocess protected by human approval, not a security sandbox.

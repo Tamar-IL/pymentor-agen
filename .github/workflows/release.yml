@@ -33,13 +33,26 @@ jobs:
         shell: bash
         run: printf 'help\nexit\n' | OPENROUTER_API_KEY=dummy ./dist/agent.exe
 
+      - name: Package source zip for the Safe-Agents catalog (manifest runtime.source_url)
+        shell: bash
+        run: |
+          git archive --format=zip --prefix=pymentor-agen/ -o pymentor-agen.zip HEAD
+          echo "sha256 for registry.json:"
+          sha256sum pymentor-agen.zip | tee pymentor-agen.zip.sha256
+
       - uses: actions/upload-artifact@v4
         with:
-          name: agent-exe
-          path: dist/agent.exe
+          name: release-files
+          path: |
+            dist/agent.exe
+            pymentor-agen.zip
+            pymentor-agen.zip.sha256
 
       - name: Publish to GitHub Releases
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/agent.exe
+          files: |
+            dist/agent.exe
+            pymentor-agen.zip
+            pymentor-agen.zip.sha256

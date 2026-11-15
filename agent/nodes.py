@@ -12,10 +12,13 @@ import operator
 import re
 from typing import Annotated, TypedDict
 
+from langchain_core.messages import AIMessage, AnyMessage, HumanMessage
+from langchain_core.runnables import RunnableConfig
+from langgraph.graph.message import add_messages
 from langgraph.types import interrupt
 
 from agent import tools
-from agent.llm import call_llm, parse_json_object
+from agent.llm import call_llm, default_model, parse_json_object
 
 MAX_QUESTION_CHARS = 8000
 MIN_PASSING_SCORE = 3      # evaluator score (1-5) needed to pass the quality gate
@@ -23,6 +26,8 @@ MAX_DRAFT_ATTEMPTS = 2     # first draft + at most one rewrite
 
 
 class AgentState(TypedDict, total=False):
+    # Safe-Agents platform contract: the conversation lives in `messages`.
+    messages: Annotated[list[AnyMessage], add_messages]
     question: str
     file_name: str | None
     file_content: str | None
@@ -39,6 +44,7 @@ class AgentState(TypedDict, total=False):
     eval_feedback: str
     attempts: int
     usage: Annotated[list[dict], operator.add]   # one record per LLM call (for cost)
+    usage_start: int         # index in `usage` where the current turn starts
 
 
 # ------------------------------------------------------------------ prompts
@@ -132,29 +138,84 @@ def _looks_like_python(text: str) -> bool:
     return bool(re.search(r"\b(def|import|print\(|Traceback|Error\b|for .+ in |while |class )", text))
 
 
-def input_guardrail(state: AgentState) -> dict:
+_FILE_PATH_RE = re.compile(
+    r"""(?:[A-Za-z]:\\|/)[^\n"'<>|?*]*?\.(?:py|txt|md|log)(?=$|[\s"'.,;:)])""", re.IGNORECASE)
+
+
+def _message_text(message) -> str:
+    content = message.content
+    if isinstance(content, str):
+        return content
+    return "".join(part.get("text", "") if isinstance(part, dict) else str(part) for part in content)
+
+
+def _start_turn(state: AgentState, config: RunnableConfig | None) -> dict:
+    """Per-turn setup, shared by the CLI (sends `question`) and the Safe-Agents app (sends `messages`).
+
+    The app keeps one thread for a whole conversation, so per-turn fields are reset here;
+    otherwise the previous question's code output or rewrite counter would leak into this one.
+    """
+    messages = state.get("messages") or []
+    question = state.get("question") or ""
+    if messages and isinstance(messages[-1], HumanMessage):
+        question = _message_text(messages[-1])
+    model = ((config or {}).get("configurable") or {}).get("model") or state.get("model") or default_model()
+    update: dict = {
+        "question": question.strip(), "model": model, "usage_start": len(state.get("usage") or []),
+        "attempts": 0, "code": None, "code_output": None, "code_approved": None,
+        "eval_score": 0, "eval_feedback": "", "context": [], "answer": "",
+    }
+    # The app (and drag-and-drop) put a local file path inside the message: read that file.
+    if not state.get("file_content"):
+        for match in _FILE_PATH_RE.finditer(question):
+            try:
+                path, content = tools.read_local_file(match.group(0))
+            except tools.FileInputError:
+                continue
+            update["file_name"], update["file_content"] = path.name, content
+            break
+    return update
+
+
+def input_guardrail(state: AgentState, config: RunnableConfig) -> dict:
     """Guardrail + gate: block empty, oversized, injection and off-topic input."""
-    question = (state.get("question") or "").strip()
-    if not question and not state.get("file_content"):
-        return {"blocked": True, "block_reason": "empty"}
+    turn = _start_turn(state, config)
+    question = turn["question"]
+    file_content = turn.get("file_content") or state.get("file_content")
+    file_name = turn.get("file_name") or state.get("file_name")
+    if not question and not file_content:
+        return {**turn, "blocked": True, "block_reason": "empty"}
     if len(question) > MAX_QUESTION_CHARS:
-        return {"blocked": True, "block_reason": "too_long"}
+        return {**turn, "blocked": True, "block_reason": "too_long"}
     for pattern in INJECTION_PATTERNS:          # deterministic: cheap and cannot be talked out of
         if re.search(pattern, question, re.IGNORECASE):
-            return {"blocked": True, "block_reason": "prompt_injection"}
+            return {**turn, "blocked": True, "block_reason": "prompt_injection"}
 
     text = question
-    if state.get("file_content"):
-        text += f"\n\n[Attached file {state.get('file_name')}]\n{state['file_content'][:1500]}"
-    reply, usage = call_llm("input_guardrail", state["model"], SCOPE_PROMPT, text, temperature=0)
+    if file_content:
+        text += f"\n\n[Attached file {file_name}]\n{file_content[:1500]}"
+    reply, usage = call_llm("input_guardrail", turn["model"], SCOPE_PROMPT, text, temperature=0)
     parsed = parse_json_object(reply)
     if parsed is not None and isinstance(parsed.get("in_scope"), bool):
         in_scope = parsed["in_scope"]
     else:
         in_scope = _looks_like_python(text)     # model did not return valid JSON
     if not in_scope:
-        return {"blocked": True, "block_reason": "out_of_scope", "usage": [usage]}
-    return {"blocked": False, "block_reason": "", "usage": [usage]}
+        return {**turn, "blocked": True, "block_reason": "out_of_scope", "usage": [usage]}
+    return {**turn, "blocked": False, "block_reason": "", "usage": [usage]}
+
+
+def _final_message(state: AgentState, answer: str) -> AIMessage:
+    """The answer as an AI message, carrying this turn's token usage (the app computes cost from it)."""
+    records = (state.get("usage") or [])[state.get("usage_start", 0):]
+    tokens_in = sum(r["input_tokens"] for r in records)
+    tokens_out = sum(r["output_tokens"] for r in records)
+    return AIMessage(
+        content=answer,
+        usage_metadata={"input_tokens": tokens_in, "output_tokens": tokens_out,
+                        "total_tokens": tokens_in + tokens_out},
+        response_metadata={"model_name": records[-1]["model"] if records else state.get("model", "")},
+    )
 
 
 def refuse(state: AgentState) -> dict:
@@ -168,7 +229,7 @@ def refuse(state: AgentState) -> dict:
         message = f"Your message is too long (limit {MAX_QUESTION_CHARS} characters). Attach it as a file instead."
     if _HEBREW_RE.search(state.get("question") or ""):
         message = f"{REFUSAL_HE}\n{message}"
-    return {"answer": message}
+    return {"answer": message, "messages": [_final_message(state, message)]}
 
 
 # ------------------------------------------------------------------ classification
@@ -221,20 +282,34 @@ def route_after_retrieve(state: AgentState) -> str:
 
 # ------------------------------------------------------------------ HITL + code-exec
 
+def _is_approved(decision) -> tuple[bool, str | None]:
+    """Read the user's answer. The Safe-Agents app sends {"approved": bool, "edited": ...};
+    the CLI sends "y" / "n". Returns (approved, edited_code_or_None)."""
+    if isinstance(decision, dict):
+        edited = decision.get("edited")
+        return bool(decision.get("approved")), edited if isinstance(edited, str) and edited.strip() else None
+    return str(decision).strip().lower() in ("y", "yes", "כן"), None
+
+
 def approve_and_run(state: AgentState) -> dict:
     """HITL: pause the graph and ask the user before running any code.
 
     interrupt() saves the state and stops the graph. The CLI shows the code and asks
-    [Y/N]; the answer comes back here via Command(resume=...).
+    [y/N]; the app shows an approval card. The answer comes back via Command(resume=...).
     """
     code = state["code"] or ""
+    warnings = tools.risky_operations(code)
     decision = interrupt({
-        "type": "confirm_code_execution",
-        "code": code,
-        "warnings": tools.risky_operations(code),
+        "type": "approval",                       # Safe-Agents contract
+        "action": "run_python_code",
+        "details": {"code": code, "warnings": warnings},
+        "code": code,                              # read by the CLI
+        "warnings": warnings,
     })
-    if str(decision).strip().lower() in ("y", "yes", "כן"):
-        return {"code_approved": True, "code_output": tools.run_python_code(code)}
+    approved, edited = _is_approved(decision)
+    if approved:
+        code = edited or code
+        return {"code": code, "code_approved": True, "code_output": tools.run_python_code(code)}
     return {"code_approved": False, "code_output": None}
 
 
@@ -292,4 +367,4 @@ def output_guardrail(state: AgentState) -> dict:
         answer = re.sub(pattern, "[REDACTED-SECRET]", answer)
     if not answer.strip():
         answer = "Sorry, I could not produce an answer. Please rephrase your question."
-    return {"answer": answer}
+    return {"answer": answer, "messages": [_final_message(state, answer)]}

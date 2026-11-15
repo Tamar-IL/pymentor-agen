@@ -25,8 +25,7 @@ from agent import nodes
 from agent.nodes import AgentState
 
 
-def build_graph(checkpointer=None):
-    """Compile the graph. A checkpointer is required for HITL (interrupt/resume)."""
+def _builder() -> StateGraph:
     builder = StateGraph(AgentState)
 
     builder.add_node("input_guardrail", nodes.input_guardrail)
@@ -52,4 +51,15 @@ def build_graph(checkpointer=None):
     builder.add_conditional_edges("evaluator", nodes.route_after_evaluator, ["draft", "output_guardrail"])
     builder.add_edge("output_guardrail", END)
 
-    return builder.compile(checkpointer=checkpointer or InMemorySaver())
+    return builder
+
+
+def build_graph(checkpointer=None):
+    """Graph for the CLI and evals. A checkpointer is required for HITL (interrupt/resume)."""
+    return _builder().compile(checkpointer=checkpointer or InMemorySaver())
+
+
+# Safe-Agents platform entry point (manifest runtime.graph_entry = "agent/graph.py:graph").
+# No custom checkpointer: the LangGraph server provides its own.
+# Importing this module creates no LLM client and reads no keys.
+graph = _builder().compile()
