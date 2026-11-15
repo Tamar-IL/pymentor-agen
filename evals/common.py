@@ -24,7 +24,8 @@ RUBRIC_PATH = Path(__file__).resolve().parent / "rubric.md"
 
 # One paid model is required by the assignment (cost eval). Override in .env.
 FREE_MODELS = [m.strip() for m in os.getenv(
-    "EVAL_FREE_MODELS", "nvidia/nemotron-3.5-lightning:free,google/gemma-4-31b-it:free").split(",") if m.strip()]
+    # gemma-4-31b-it:free is left out: it was rate-limited on every call in real runs.
+    "EVAL_FREE_MODELS", "nvidia/nemotron-3.5-lightning:free").split(",") if m.strip()]
 PAID_MODELS = [m.strip() for m in os.getenv("EVAL_PAID_MODELS", "openai/gpt-4o-mini").split(",") if m.strip()]
 ALL_MODELS = FREE_MODELS + PAID_MODELS
 # The judge is ONE fixed model for every comparison, so all answers are graded the same way.
