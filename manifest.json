@@ -1,12 +1,12 @@
 {
   "name": "PyMentor Agent",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "PyMentor is a Python programming tutor for beginners. It explains Python concepts, explains Python error messages and tracebacks, fixes and reviews Python code, and runs Python code (only after the user approves) to explain the real output. It answers only questions about Python programming.",
   "creator_name": "swenlly",
   "contact_information": "info@swenlly.com",
   "release_date": "2026-11-15",
   "repository_url": "https://github.com/Tamar-IL/pymentor-agen",
-  "download_url": "https://github.com/Tamar-IL/pymentor-agen/releases/download/v1.0.0/agent.exe",
+  "download_url": "https://github.com/Tamar-IL/pymentor-agen/releases/download/v1.0.1/agent.exe",
   "target_audience": "Beginner Python programmers, students, and Python course instructors",
   "professional_fields": [
     "Programming Education",
@@ -32,8 +32,8 @@
     "framework": "LangGraph",
     "llm_provider": "OpenRouter",
     "supported_models": [
-      "google/gemma-4-31b-it:free",
       "nvidia/nemotron-3.5-lightning:free",
+      "google/gemma-4-31b-it:free",
       "nvidia/nemotron-3-ultra-550b-a55b:free",
       "openrouter/free",
       "openai/gpt-4o-mini"
@@ -55,7 +55,7 @@
     "graph_id": "pymentor_agent",
     "graph_entry": "agent/graph.py:graph",
     "python": ">=3.11,<3.13",
-    "source_url": "https://github.com/Tamar-IL/pymentor-agen/releases/download/v1.0.0/pymentor-agen.zip",
+    "source_url": "https://github.com/Tamar-IL/pymentor-agen/releases/download/v1.0.1/pymentor-agen.zip",
     "input_schema": "messages",
     "accepts_files": [
       ".py",
@@ -71,6 +71,6 @@
       "PYMENTOR_MODEL",
       "PYMENTOR_FALLBACK_MODELS"
     ],
-    "default_model": "google/gemma-4-31b-it:free"
+    "default_model": "nvidia/nemotron-3.5-lightning:free"
   }
 }

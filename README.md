@@ -188,6 +188,9 @@ python evals/cost_eval.py
 python evals/scope_eval.py
 ```
 Each writes its own CSV to `evals/results/`.
+If a free model is rate-limited, the scripts wait and retry (up to 3 times). A question
+that still fails is reported as an error and never counted as a wrong answer or a missed
+refusal; the scope eval then says `INCOMPLETE` instead of `PASS`/`FAIL`.
 
 | Eval | What it checks | How it is measured | Output |
 |---|---|---|---|
@@ -216,13 +219,11 @@ all three eval scripts producing their CSVs, and the Safe-Agents platform contra
 
 ## 6. Building `agent.exe` and publishing a Release
 
-Automatic (recommended): push a version tag — the GitHub Actions workflow
-`.github/workflows/release.yml` runs the tests, builds `agent.exe` on Windows with
-PyInstaller, smoke-tests it, and attaches it to the Release.
-```bash
-git tag v1.0.0
-git push origin v1.0.0
-```
+Automatic (recommended): on GitHub, open **Releases → Draft a new release**, create a tag
+matching `version` in `manifest.json` (e.g. `v1.0.1`), and click **Publish release**.
+The workflow `.github/workflows/release.yml` then runs the tests, builds `agent.exe` on
+Windows with PyInstaller, smoke-tests it, and attaches `agent.exe`, `pymentor-agen.zip`
+and its sha256 to the Release (about 3 minutes).
 
 Manual (on a Windows computer):
 ```bash

@@ -24,27 +24,45 @@ RUBRIC_PATH = Path(__file__).resolve().parent / "rubric.md"
 
 # One paid model is required by the assignment (cost eval). Override in .env.
 FREE_MODELS = [m.strip() for m in os.getenv(
-    "EVAL_FREE_MODELS", "google/gemma-4-31b-it:free,nvidia/nemotron-3.5-lightning:free").split(",") if m.strip()]
+    "EVAL_FREE_MODELS", "nvidia/nemotron-3.5-lightning:free,google/gemma-4-31b-it:free").split(",") if m.strip()]
 PAID_MODELS = [m.strip() for m in os.getenv("EVAL_PAID_MODELS", "openai/gpt-4o-mini").split(",") if m.strip()]
 ALL_MODELS = FREE_MODELS + PAID_MODELS
 # The judge is ONE fixed model for every comparison, so all answers are graded the same way.
 JUDGE_MODEL = os.getenv("JUDGE_MODEL", "openai/gpt-4o-mini")
 
 
-def run_agent(question: str, model: str, approve_code: bool = True) -> dict:
+RATE_LIMIT_RETRIES = 3          # free models are often rate-limited for a short while
+RATE_LIMIT_WAIT_SECONDS = 20
+
+
+def run_agent(question: str, model: str, approve_code: bool = True,
+              use_fallback: bool = False) -> dict:
     """Run the real agent graph once, non-interactively.
 
     Code approval is scripted ("y") because the eval questions are our own fixed,
     harmless snippets; the interactive CLI always asks the human.
+    use_fallback=False measures exactly the named model (model comparison, cost);
+    True measures the agent as users get it, backup models included (scope eval).
     """
-    os.environ["PYMENTOR_FALLBACK_MODELS"] = ""   # evals must measure the model they name
+    if use_fallback:
+        os.environ.pop("PYMENTOR_FALLBACK_MODELS", None)   # the agent's default backups
+    else:
+        os.environ["PYMENTOR_FALLBACK_MODELS"] = ""
     start = time.perf_counter()
-    try:
-        state = run_turn(build_graph(), {"question": question, "model": model},
-                         approve=lambda payload: "y" if approve_code else "n")
-        error = ""
-    except LLMError as problem:
-        state, error = {}, str(problem)
+    state, error = {}, ""
+    for attempt in range(1, RATE_LIMIT_RETRIES + 1):
+        try:
+            state = run_turn(build_graph(), {"question": question, "model": model},
+                             approve=lambda payload: "y" if approve_code else "n")
+            error = ""
+            break
+        except LLMError as problem:
+            state, error = {}, str(problem)
+            if "rate-limited" not in error or attempt == RATE_LIMIT_RETRIES:
+                break
+            wait = RATE_LIMIT_WAIT_SECONDS * attempt
+            print(f"   rate-limited, retrying in {wait}s (attempt {attempt}/{RATE_LIMIT_RETRIES})", flush=True)
+            time.sleep(wait)
     return {
         "state": state,
         "answer": state.get("answer", ""),

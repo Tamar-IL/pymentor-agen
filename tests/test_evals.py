@@ -82,3 +82,32 @@ def test_scope_eval_reports_refusal_rate(eval_env):
     assert summary["false_refusal_rate"] == "0.0%"
     assert summary["catalog"] == "PASS"
     assert len([r for r in rows if r["type"] == "out_of_scope"]) == len(out_questions) >= 5
+
+
+class RateLimitError(Exception):
+    status_code = 429
+
+
+def test_scope_eval_does_not_count_errors_as_missed_refusals(eval_env, monkeypatch):
+    """Regression: a rate-limited model made every question 'not refused' (11.1% FAIL)."""
+    replies, out = eval_env
+    monkeypatch.setattr(common, "RATE_LIMIT_RETRIES", 1)
+    replies["scope"] = RateLimitError("busy")          # every model call fails
+    scope_eval.main()
+    rows = read(out / "scope_eval.csv")
+    summary = {r["question"].split(" ")[0]: r["refused"] for r in rows if r["type"] == "SUMMARY"}
+    assert summary["catalog"].startswith("INCOMPLETE")
+    assert summary["errors"] == str(len(scope_eval.OUT_OF_SCOPE) - 2 + len(scope_eval.IN_SCOPE_CONTROLS))
+    assert summary["refusal_rate"] == "100.0%"         # only the 2 regex-blocked questions counted
+    errored = [r for r in rows if r["error"]]
+    assert errored and all(r["refused"] == "" for r in errored)
+
+
+def test_run_agent_retries_after_rate_limit(eval_env, monkeypatch):
+    replies, _ = eval_env
+    sleeps = []
+    monkeypatch.setattr(common.time, "sleep", sleeps.append)
+    replies["scope"] = [RateLimitError("busy"), '{"in_scope": true}']
+    result = common.run_agent("What is a list?", "free/model:free")
+    assert result["error"] == "" and result["answer"]
+    assert sleeps == [common.RATE_LIMIT_WAIT_SECONDS]

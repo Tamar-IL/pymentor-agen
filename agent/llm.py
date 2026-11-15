@@ -20,9 +20,10 @@ OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 # Free models change often on OpenRouter. These defaults can be overridden in .env,
 # and the CLI command `models` lists the free models available right now.
 # (Checked against the live OpenRouter catalog, November 2026.)
-DEFAULT_MODEL = "google/gemma-4-31b-it:free"
+# gemma-4-31b-it:free was heavily rate-limited in real eval runs, so it is a fallback only.
+DEFAULT_MODEL = "nvidia/nemotron-3.5-lightning:free"
 DEFAULT_FALLBACK_MODELS = [
-    "nvidia/nemotron-3.5-lightning:free",
+    "google/gemma-4-31b-it:free",
     "nvidia/nemotron-3-ultra-550b-a55b:free",
     "openrouter/free",   # OpenRouter's router over whatever free models exist today
 ]
