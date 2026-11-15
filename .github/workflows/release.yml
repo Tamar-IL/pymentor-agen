@@ -1,10 +1,11 @@
-# Builds agent.exe on Windows and publishes it on the Releases page.
-# Trigger: push a tag like v1.0.0   (git tag v1.0.0 && git push origin v1.0.0)
+# Builds agent.exe on Windows and attaches it (plus the store zip) to a GitHub Release.
+# Trigger: on GitHub, Releases -> "Draft a new release" -> tag v1.0.0 -> Publish.
+# (A manual run from the Actions tab builds the files as a downloadable artifact only.)
 name: Build agent.exe and release
 
 on:
-  push:
-    tags: ["v*"]
+  release:
+    types: [published]
   workflow_dispatch:
 
 permissions:
